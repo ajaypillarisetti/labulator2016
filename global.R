@@ -10,7 +10,7 @@ library(scales)
 library(devtools)
 library(dygraphs)
 library(readxl)
-
+library(rdrop2)
 ### Ajay Pillarisetti, University of California, Berkeley, 2015
 ### V1.0N
 
@@ -53,16 +53,26 @@ round.minutes <- function(x, noOfMinutes=5){
 	structure((noOfMinutes*60) * (as.numeric(x + (noOfMinutes*60*0.5)) %/% (noOfMinutes*60)), class=class,tz=tz)
 }
 
-#check the OS
-OS <- Sys.info()[['sysname']]
-if(OS == 'Windows'){path_to_dropbox <- paste(Sys.getenv('USERPROFILE'),'\\Dropbox',sep="")} else
-if(OS =='Darwin'){path_to_dropbox <- paste("~/Dropbox")}else(warning("Not Windows or Mac"))
+db_loadData <- function(){
+  # Read all the files into a list
+  filesInfo <- drop_dir('filter_room_status')
+  filePaths <- filesInfo$path
+  filePaths <- grep('tty', filePaths, value=T)
+  filePaths <- grep('2016', filePaths, value=T)
+  data <- lapply(filePaths, drop_read_patsplus)
+  # Concatenate all data together into one data.frame
+  data <- do.call(rbind, data)
+  data
+}
+
+drop_read_patsplus <- function (file, dest = tempdir(), dtoken = readRDS('droptoken.rds'), ...) {
+    localfile = paste0(dest, "/", basename(file))
+    drop_get(file, local_file = localfile, overwrite = TRUE, 
+        dtoken = dtoken)
+    read.patsplus(localfile, ...)
+}
 
 #create the data
-files <- list.files(paste(path_to_dropbox, "/filter_room_status", sep=""), full.names=T, recursive=T, pattern=".log.")
-files <- grep('tty', files, value=T)
-files <- grep('2016', files, value=T)
-all <- lapply(files, read.patsplus)
-all <- do.call(rbind, all)
+all <- db_loadData()
 all <- all[,c('datetime', 'degC_air', 'RH_air'), with=F]
 

@@ -11,4 +11,5 @@ library(dygraphs)
 library(xts)
 library(shiny)
 library(shinydashboard)
+library(rdrop2)
 
