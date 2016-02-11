@@ -9,11 +9,29 @@ library(shinydashboard)
 library(scales)
 library(devtools)
 library(dygraphs)
-# library(XLConnect)
 library(readxl)
 
 ### Ajay Pillarisetti, University of California, Berkeley, 2015
 ### V1.0N
+
+read.patsplus<- function(x, tzone="America/Los_Angeles"){
+	#confirm file contains data
+	fileCheck <- file.info(x)$size>0
+	if(fileCheck){
+		raw <- read.delim(x)
+		kLines <- as.numeric(sapply(raw, function(x) grep('[0-9/0-9/0-9]{2,} [0-9:]{6,},[0-9.,]{3,}',x)))
+		rare <- as.character(raw[kLines,])
+		fn <- tempfile()
+		write(rare, file=fn)
+		mediumwell <- fread(fn)
+		unlink(fn)
+		if(ncol(mediumwell)==12){
+			setnames(mediumwell, c('datetime','V_power','degC_sys','degC_air','RH_air','degC_thermistor','usb_pwr','fanSetting','filterSetting','ref_sigDel','low20','high320'))}else{
+			setnames(mediumwell, c('datetime','V_power','degC_sys','degC_air','RH_air','degC_CO','mV_CO','status','ref_sigDel','low20','high320'))				
+		}
+		mediumwell[,datetime:=ymd_hms(datetime, tz=tzone)]
+	}else{warning(paste("File", x, "does not contain valid data", sep=" "))}
+}
 
 # install missing packages.
 list.of.packages <- c("shiny","ggplot2","reshape2","plyr","lubridate","data.table","dygraphs","xts","devtools","shinydashboard","scales",'dygraphs','readxl')
@@ -35,64 +53,16 @@ round.minutes <- function(x, noOfMinutes=5){
 	structure((noOfMinutes*60) * (as.numeric(x + (noOfMinutes*60*0.5)) %/% (noOfMinutes*60)), class=class,tz=tz)
 }
 
-read.sum <- function(file, fname,tzone="GMT"){
-	fileCheck <- file.info(file)$size>0
-	if(fileCheck){
-	sums <- fread(file)
-	names(sums)[1:3]  <- c('datetime','temp','serial')
-	sums[,datetime:=ymd_hms(datetime, tz="Africa/Accra")]
- 
-	}else{warning(paste("File", file, "does not contain valid iButton data", sep=" "))}
-}
-
-Mode <- function(x) {
-  ux <- unique(x)
-  ux[which.max(tabulate(match(x, ux)))]
-}
-
 #check the OS
 OS <- Sys.info()[['sysname']]
 if(OS == 'Windows'){path_to_dropbox <- paste(Sys.getenv('USERPROFILE'),'\\Dropbox',sep="")} else
 if(OS =='Darwin'){path_to_dropbox <- paste("~/Dropbox")}else(warning("Not Windows or Mac"))
 
-
 #create the data
-files <- list.files(paste(path_to_dropbox, "/Ghana_adoption_data_SHARED/serverTest/archive", sep=""), full.names=T, recursive=T)
-files <- grep('attributes', files, value=T, invert=T)
-all <- lapply(files, fread)
+files <- list.files(paste(path_to_dropbox, "/filter_room_status", sep=""), full.names=T, recursive=T, pattern=".log.")
+files <- grep('tty', files, value=T)
+files <- grep('2016', files, value=T)
+all <- lapply(files, read.patsplus)
 all <- do.call(rbind, all)
-all[,device_id:=substring(serial, nchar(serial)-7, nchar(serial))]
+all <- all[,c('datetime', 'degC_air', 'RH_air'), with=F]
 
-#data prep
-log.sheet <- read_excel(paste(path_to_dropbox, '/Ghana_adoption_data_SHARED/Stove_use_protocol/SUMS_logsheet_draft_2015-07-2015.xlsx', sep=""))[,1:5]
-log.sheet <- as.data.table(log.sheet)
-#restruct to i for now
-log.sheet <- log.sheet[Type=='i']
-setnames(log.sheet, c('device_type','community','device_id','mid','location'))
-log.location <- read_excel(paste(path_to_dropbox, '/Ghana_adoption_data_SHARED/Stove_use_protocol/SUMS_logsheet_draft_2015-07-2015.xlsx', sep=""), sheet=2)[,4:5]
-log.location <- as.data.table(log.location)
-setnames(log.location, 1:2, c('location', 'description'))
-log.location[,description:=gsub(" - ", "_",description)]
-log.location[,description:=gsub(" #", "_",description)]
-log.location[,description:=gsub(" ", "_",description)]
-log.location[,description:=tolower(description)]
-log.location <- log.location[!is.na(location)]
-
-log.sheet
-
-all <- merge(all, log.sheet, by='device_id', all.x=T)
-all[,datetime:=ymd_hms(datetime)]
-
-all[,location:=as.character(location)]
-log.location[,location:=as.character(location)]
-
-
-setkey(all, 'location')
-setkey(log.location, 'location')
-
-all <- log.location[all]
-# all[,stove_loc:=gsub(" ","", stove_loc)]
-
-setkey(all)
-all[,serial:=substring(serial,1,16)]
-all <- unique(all)

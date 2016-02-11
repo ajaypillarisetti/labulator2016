@@ -1,10 +1,5 @@
 ### Ajay Pillarisetti, University of California, Berkeley, 2015
 ### V1.0G
-### ADD HORIZONTAL LINE AT 85C
-## 1115M, 1228M, 
-## Write out to RDS (?)
-## ksums diagostics
-
 
 Sys.setenv(TZ="GMT")
 
@@ -12,12 +7,11 @@ shinyServer(function(input, output) {
 
 	#read in data
 	datasetInput <- reactive({
-	    inFile <- input$files
-	    # print(inFile)
-	    loc_types <- sapply(strsplit(inFile, '_'),'[[',1)
-	    desc_types <- print(log.location[location %in% c(loc_types), unique(description)])
-	    mid_input <- input$mid
-		dta <- all[as.Date(datetime)>=input$dateSelect[1] & as.Date(datetime)<=input$dateSelect[2] & mid==mid_input & location %in% loc_types & description %in% desc_types]
+	    # inFile <- input$files
+	    # loc_types <- sapply(strsplit(inFile, '_'),'[[',1)
+	    # desc_types <- print(log.location[location %in% c(loc_types), unique(description)])
+	    # mid_input <- input$mid
+		dta <- all[as.Date(datetime)>=input$dateSelect[1] & as.Date(datetime)<=input$dateSelect[2]]
 	})
 
 	datasetName <- reactive({
@@ -34,11 +28,18 @@ shinyServer(function(input, output) {
 	####################
 	##### datasets ##### 
 	####################
-	dataXTS.plainplot <- reactive({
-		dta<-data_cleaned()
-		dta.wide <- dcast.data.table(dta, datetime~description+device_id, value.var='temp')
+	dataXTS.plainplot.temp <- reactive({
+		dta <- data_cleaned()[,c('datetime','degC_air'), with=F]
+		cols <- colnames(dta)[colnames(dta)!='datetime']
+		dta.wide <- dta[, lapply(.SD, as.numeric), by=datetime]
 		cols <- colnames(dta.wide)[colnames(dta.wide)!='datetime']
-		dta.wide <- dta.wide[, lapply(.SD, as.numeric), by=datetime]
+		as.xts(dta.wide)
+	})
+
+	dataXTS.plainplot.rh <- reactive({
+		dta <- data_cleaned()[,c('datetime','RH_air'), with=F]
+		cols <- colnames(dta)[colnames(dta)!='datetime']
+		dta.wide <- dta[, lapply(.SD, as.numeric), by=datetime]
 		cols <- colnames(dta.wide)[colnames(dta.wide)!='datetime']
 		as.xts(dta.wide)
 	})
@@ -71,7 +72,7 @@ shinyServer(function(input, output) {
 		selectInput('mid', "Maternal ID", all[!is.na(mid) & as.Date(datetime)>=input$dateSelect[1] & as.Date(datetime)<=input$dateSelect[2],sort(unique(mid))])
 	})
 
-	output$selectedMID <- renderText({paste("Time-series plot (", input$mid, ")", sep="")})
+	output$selectedMID <- renderText({paste("Time-series plot", sep="")})
 
 	# output$selectDate <- renderUI({
 	# })
@@ -83,51 +84,51 @@ shinyServer(function(input, output) {
 	    checkboxGroupInput("files", "Choose stoves", choices  = files, selected = files)
   	})
 
-	####################
-	####### Boxes ###### 
-	####################
-	# Overview Page 	
-	output$maxTemp <- renderInfoBox({
-		if (is.null(datasetInput())) return(NULL)
-		maxTemp <- data_cleaned()[,max(temp)]
-		maxThreshold <- 85
-		deviceIDs <- data_cleaned()[temp>maxThreshold, unique(device_id)]
-		infoBox(
-			value = if (maxTemp >= maxThreshold) paste(deviceIDs, description, collapse=", ") else formatC(maxTemp, digits = 2, format = "f"),
-			title = if (maxTemp >= maxThreshold) "Warning: 85C Exceeded" else "Max Temp",
-			icon = if (maxTemp >= maxThreshold)icon("warning") else icon("chevron-circle-up"),
-			color = if (maxTemp >= maxThreshold) "red" else "green"
-		)
-	})
+	# ####################
+	# ####### Boxes ###### 
+	# ####################
+	# # Overview Page 	
+	# output$maxTemp <- renderInfoBox({
+	# 	if (is.null(datasetInput())) return(NULL)
+	# 	maxTemp <- data_cleaned()[,max(temp)]
+	# 	maxThreshold <- 85
+	# 	deviceIDs <- data_cleaned()[temp>maxThreshold, unique(device_id)]
+	# 	infoBox(
+	# 		value = if (maxTemp >= maxThreshold) paste(deviceIDs, description, collapse=", ") else formatC(maxTemp, digits = 2, format = "f"),
+	# 		title = if (maxTemp >= maxThreshold) "Warning: 85C Exceeded" else "Max Temp",
+	# 		icon = if (maxTemp >= maxThreshold)icon("warning") else icon("chevron-circle-up"),
+	# 		color = if (maxTemp >= maxThreshold) "red" else "green"
+	# 	)
+	# })
 
-	output$minTemp <- renderInfoBox({
-		if (is.null(datasetInput())) return(NULL)
-		minTemp <- data_cleaned()[,min(temp)]
-		minThreshold <- 0
-		deviceIDs <- data_cleaned()[temp<=minThreshold,unique(device_id)]
-		infoBox(
-			value = if (minTemp <= minThreshold) paste(deviceIDs, description, collapse=", ") else formatC(minTemp, digits = 2, format = "f"),
-			title = if (minTemp <= minThreshold) "Warning: Values Below 0" else "Min Temp",
-			icon = if (minTemp <= minThreshold) icon("warning") else icon("chevron-circle-down"),
-			color = if (minTemp <= minThreshold) "red" else "green"
-		)
-	})
+	# output$minTemp <- renderInfoBox({
+	# 	if (is.null(datasetInput())) return(NULL)
+	# 	minTemp <- data_cleaned()[,min(temp)]
+	# 	minThreshold <- 0
+	# 	deviceIDs <- data_cleaned()[temp<=minThreshold,unique(device_id)]
+	# 	infoBox(
+	# 		value = if (minTemp <= minThreshold) paste(deviceIDs, description, collapse=", ") else formatC(minTemp, digits = 2, format = "f"),
+	# 		title = if (minTemp <= minThreshold) "Warning: Values Below 0" else "Min Temp",
+	# 		icon = if (minTemp <= minThreshold) icon("warning") else icon("chevron-circle-down"),
+	# 		color = if (minTemp <= minThreshold) "red" else "green"
+	# 	)
+	# })
 
-	output$avgDailyRange <- renderInfoBox({
-		if (is.null(datasetInput())) return(NULL)
-		data_cleaned()[,yday:=yday(datetime)]
-		data_cleaned()[,temp:=as.numeric(temp)]
-		data_cleaned()[,dailyRange:=max(temp)-min(temp),by='yday']
-		avgDailyRange <- data_cleaned()[location!=12,mean(dailyRange)]
-		dailyRangeThreshold <- 15
-		deviceIDs <- data_cleaned()[avgDailyRange<=dailyRangeThreshold,unique(device_id)]
-		infoBox(
-			value = if (avgDailyRange <= dailyRangeThreshold) paste(deviceIDs, collapse=", ") else formatC(avgDailyRange, digits = 2, format = "f"),
-			title = if (avgDailyRange <= dailyRangeThreshold) paste("Warning: Avg Daily Range ", formatC(avgDailyRange, digits = 2, format = "f"), sep="") else "Avg Daily Range (non-ambient)",
-			icon = if (avgDailyRange <= dailyRangeThreshold) icon("warning") else icon("chevron-circle-down"),
-			color = if (avgDailyRange <= dailyRangeThreshold) "yellow" else "green"
-		)
-	})
+	# output$avgDailyRange <- renderInfoBox({
+	# 	if (is.null(datasetInput())) return(NULL)
+	# 	data_cleaned()[,yday:=yday(datetime)]
+	# 	data_cleaned()[,temp:=as.numeric(temp)]
+	# 	data_cleaned()[,dailyRange:=max(temp)-min(temp),by='yday']
+	# 	avgDailyRange <- data_cleaned()[location!=12,mean(dailyRange)]
+	# 	dailyRangeThreshold <- 15
+	# 	deviceIDs <- data_cleaned()[avgDailyRange<=dailyRangeThreshold,unique(device_id)]
+	# 	infoBox(
+	# 		value = if (avgDailyRange <= dailyRangeThreshold) paste(deviceIDs, collapse=", ") else formatC(avgDailyRange, digits = 2, format = "f"),
+	# 		title = if (avgDailyRange <= dailyRangeThreshold) paste("Warning: Avg Daily Range ", formatC(avgDailyRange, digits = 2, format = "f"), sep="") else "Avg Daily Range (non-ambient)",
+	# 		icon = if (avgDailyRange <= dailyRangeThreshold) icon("warning") else icon("chevron-circle-down"),
+	# 		color = if (avgDailyRange <= dailyRangeThreshold) "yellow" else "green"
+	# 	)
+	# })
 
 	####################
 	###### Tables ###### 
@@ -161,7 +162,17 @@ shinyServer(function(input, output) {
 	output$plainPlot<- 
 	renderDygraph({
 		# if (is.null(datasetInput())) return(NULL)
-		dygraph(dataXTS.plainplot()) %>% 
+		dygraph(dataXTS.plainplot.temp(), group = "lab") %>% 
+	    dyOptions(axisLineWidth = 1.5, fillGraph = F, drawGrid = FALSE, useDataTimezone=T, strokeWidth=1, connectSeparatedPoints=T) %>%
+	    dyAxis("y", label = "Temp C") %>%
+	    dyAxis("x", label = "Date & Time") %>%
+        dyLegend(labelsDiv = "legendARY")
+	})
+
+	output$plainPlot2<- 
+	renderDygraph({
+		# if (is.null(datasetInput())) return(NULL)
+		dygraph(dataXTS.plainplot.rh(), group = "lab") %>% 
 	    dyOptions(axisLineWidth = 1.5, fillGraph = F, drawGrid = FALSE, useDataTimezone=T, strokeWidth=1, connectSeparatedPoints=T) %>%
 	    dyAxis("y", label = "Temp C") %>%
 	    dyAxis("x", label = "Date & Time") %>%
