@@ -116,7 +116,7 @@ shinyServer(function(input, output) {
 	renderDygraph({
 		dygraph(dataXTS.plainplot.rh(), group = "lab") %>% 
 	    dyOptions(axisLineWidth = 1.5, fillGraph = F, drawGrid = FALSE, useDataTimezone=T, strokeWidth=1, connectSeparatedPoints=T) %>%
-	    dyAxis("y", label = "Temp C") %>%
+	    dyAxis("y", label = "Relative Humidity (%)") %>%
 	    dyAxis("x", label = "Date & Time") %>%
         dyLegend(labelsDiv = "legendARY")
 	})
